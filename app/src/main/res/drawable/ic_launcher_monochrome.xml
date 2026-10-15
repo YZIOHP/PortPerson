@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PortPerson themed (monochrome) icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.6667" android:scaleY="0.6667" android:translateX="18" android:translateY="18">
+        <group android:rotation="7" android:pivotX="69.0" android:pivotY="47.0">
+            <path android:pathData="M51,17 H87 A6,6 0 0 1 93,23 V71 A6,6 0 0 1 87,77 H51 A6,6 0 0 1 45,71 V23 A6,6 0 0 1 51,17 Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="3" />
+            <path android:pathData="M58.0,33 h22 v15 h-6 v5 h-10 v-5 h-6 Z" android:fillColor="#FFFFFFFF" />
+        </group>
+        <path android:pathData="M75.3,67 A7.2,7.2 0 1 0 89.7,67 A7.2,7.2 0 1 0 75.3,67 Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M9,116 C9,86 22,70.5 40,70.5 C58,70.5 71,86 71,116 Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M24.5,51 A15.5,15.5 0 1 0 55.5,51 A15.5,15.5 0 1 0 24.5,51 Z" android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

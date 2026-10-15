@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PortPerson icon background: blue gradient with a soft highlight. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="0" android:startY="0" android:endX="97" android:endY="108"
+                android:startColor="#FF4FC3FF" android:centerColor="#FF2B7BFF" android:endColor="#FF1638CF" />
+        </aapt:attr>
+    </path>
+    <group android:scaleX="0.6667" android:scaleY="0.6667" android:translateX="18" android:translateY="18">
+        <path android:pathData="M-66,-38 A88,88 0 1 0 110,-38 A88,88 0 1 0 -66,-38 Z" android:fillColor="#FFFFFF" android:fillAlpha="0.13" />
+    </group>
+</vector>

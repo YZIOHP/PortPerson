@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Vendors whose Ethernet adapters commonly expose CDC-ECM/NCM. Other adapters still work;
+     you just open the app yourself instead of being prompted on plug-in. -->
+<resources>
+    <usb-device vendor-id="3034" />  <!-- 0x0BDA Realtek (RTL8152 / RTL8153 / RTL8156) -->
+    <usb-device vendor-id="2965" />  <!-- 0x0B95 ASIX (AX88179A / AX88772D) -->
+    <usb-device vendor-id="8711" />  <!-- 0x2357 TP-Link (UE300 etc., Realtek inside) -->
+</resources>
