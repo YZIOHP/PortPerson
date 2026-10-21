@@ -15,7 +15,7 @@ import android.widget.TextView;
 final class LegalNotice {
 
     /** Bump when the terms change materially so users see and accept them again. */
-    private static final int TERMS_VERSION = 1;
+    private static final int TERMS_VERSION = 2; // 2: traffic analysis, .pcap capture, connection tests
     private static final String PREFS = "legal";
     private static final String KEY = "accepted_terms_version";
 
@@ -23,9 +23,12 @@ final class LegalNotice {
             "Before you start:\n\n"
             + "• Only use PortPerson on networks you own or are authorized to test. Plugging into or testing a network "
             + "without permission may break workplace policies or the law. You are responsible for how you use it.\n\n"
-            + "• On a wired connection the app listens for switch announcements (CDP/LLDP), requests and releases a DHCP "
-            + "address, pings, traces routes and can run a speed test. This is normal device behavior, but it can show up "
-            + "in network monitoring or trigger port security.\n\n"
+            + "• On a wired connection the app listens to the traffic the port receives (switch announcements, spanning "
+            + "tree, DHCP, ARP and other broadcasts), requests and releases a DHCP address, pings, traces routes and can "
+            + "run a speed test or a connection test you start. This is normal device behavior, but it can show up in "
+            + "network monitoring or trigger port security.\n\n"
+            + "• You can save what a port test received as a capture file (.pcap). It can contain other devices' "
+            + "addresses and names, so only share it with people allowed to see it.\n\n"
             + "• Results are for information and troubleshooting only. PortPerson is not a certified test instrument and "
             + "comes with no warranty. Verify results before making changes to a network.\n\n"
             + "• PortPerson was built with the help of Claude, an AI assistant, and reviewed by its author.\n\n"
@@ -38,11 +41,17 @@ final class LegalNotice {
             + "1. Authorized use only. Use PortPerson only on networks, devices and connections you own or have "
             + "permission to test. You are solely responsible for complying with all laws, regulations, employer "
             + "policies and network owners' rules that apply to you, including computer-misuse laws.\n\n"
-            + "2. What the app does on a network. Wired tests receive network traffic through the USB adapter (it decodes "
-            + "only CDP/LLDP announcements and replies to its own tests and keeps nothing else), request and release a "
-            + "DHCP lease, send ARP, ping, DNS and traceroute traffic, can announce itself with LLDP-MED when you turn "
-            + "that on, and can run a speed test that transfers a large amount of data. Wi-Fi tests read Android's Wi-Fi "
-            + "information and scan results.\n\n"
+            + "2. What the app does on a network. Wired tests receive the traffic the switch port delivers through the USB "
+            + "adapter (on a normal port: broadcasts, multicasts and replies to the app's own tests) and analyze it to "
+            + "show switch, spanning tree, VLAN, DHCP, gateway and device information. The received frames are kept in "
+            + "memory on the phone until the next test so you can save them as a .pcap file; they are not sent anywhere "
+            + "unless you share that file. Wired tests also request and release a DHCP lease, send ARP, ping, DNS and "
+            + "traceroute traffic, and can announce themselves with LLDP-MED when you turn that on. Connection tests open "
+            + "a TCP connection to the address and port you enter, only when you tap Test; the app does not scan "
+            + "networks. Speed tests transfer a large amount of data. Wi-Fi tests read Android's Wi-Fi information and "
+            + "scan results.\n\n"
+            + "Capture files can contain other devices' addresses, names and traffic. You are responsible for saving and "
+            + "sharing them only where you're authorized to.\n\n"
             + "3. Information only. Results are provided for troubleshooting and documentation. PortPerson is not a "
             + "certified cable or network test instrument and results may be incomplete or wrong. Verify important "
             + "results with your network's own tools before acting on them.\n\n"
@@ -67,6 +76,8 @@ final class LegalNotice {
             + "They leave the phone only when you share or export them.\n"
             + "• Location permission is required by Android to show Wi-Fi network names and scan results. PortPerson does "
             + "not read, store or send your location.\n"
+            + "• Captured frames stay in memory on this phone until the next test, and are written to a file only when you "
+            + "tap Save capture. Recent connection checks (address and port) are remembered on this phone.\n"
             + "• Network tests contact the DNS servers of the network you're on and the test target you choose (default "
             + "google.com). Speed tests contact Cloudflare, which sees your public IP address. Vendor lookups send only the "
             + "first half of an access point's MAC address (the vendor prefix) to api.macvendors.com.\n\n"

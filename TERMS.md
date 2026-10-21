@@ -1,6 +1,6 @@
 # PortPerson Terms of Use and Disclaimer
 
-*Effective October 14, 2026*
+*Effective October 21, 2026*
 
 These terms apply to the PortPerson app and its source code ("PortPerson"), made by YZIOHP. By installing or using PortPerson you agree to them. If you don't agree, don't use it.
 
@@ -10,11 +10,14 @@ Use PortPerson only on networks, devices and connections that **you own or have 
 ## 2. What PortPerson does on a network
 So you can judge whether it's allowed where you use it:
 
-- **Wired (LAN) tests** run through a USB Ethernet adapter that the app puts in a receive-all (promiscuous) mode. The app decodes only CDP/LLDP announcements and the replies to its own tests; it does not keep or display other traffic. It requests and releases a DHCP lease using the adapter's MAC address, and sends ARP, ICMP (ping and traceroute) and DNS traffic. When you turn it on, it announces itself with LLDP-MED.
+- **Wired (LAN) tests** run through a USB Ethernet adapter that the app puts in a receive-all (promiscuous) mode. The app analyzes the frames the switch port delivers (on a normal access port: broadcasts, multicasts and replies to its own tests) to show switch, spanning tree, VLAN, DHCP, gateway and device information, and points out problems such as a second DHCP server or a loop. The received frames are kept in memory on the phone until the next test, so you can save them as a `.pcap` file; they aren't sent anywhere unless you share that file. The app requests and releases a DHCP lease using the adapter's MAC address, and sends ARP, ICMP (ping and traceroute) and DNS traffic. When you turn it on, it announces itself with LLDP-MED.
+- **Connection tests** (LAN and Wi-Fi) open a TCP connection to the address and port you enter, only when you tap Test. PortPerson does not scan networks or ports.
 - **Speed tests** transfer a large amount of data (roughly 50 MB to over 1 GB) to and from Cloudflare.
 - **Wi-Fi tests** read the Wi-Fi information and scan results Android provides, and send ping, DNS, TCP and traceroute traffic over the Wi-Fi network.
 
 This is ordinary client behavior, but it may appear in network monitoring, trigger port security or network access control, or be restricted by your organization's policies.
+
+**Capture files** can contain other devices' addresses, names and traffic. You are responsible for saving and sharing them only where you're authorized to, and only with people entitled to see them.
 
 ## 3. Information only, not a certified instrument
 Results are provided for troubleshooting and documentation. PortPerson is **not a certified cable, network or safety test instrument**, and results may be incomplete or wrong (for example, when a switch doesn't announce itself or a network filters traffic). Verify important results with your network's own management tools before acting on them.

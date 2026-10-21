@@ -93,6 +93,7 @@ final class WifiPanel {
     private long lastScanRequest;
     private int connectedFreq;
     private String connectedBssid = "";
+    private ConnectionTestCard connTest;
     private String connectedSsid = "";
     private String apText = "";
     private final Map<String, String> vendorCache = new HashMap<>();
@@ -423,7 +424,7 @@ final class WifiPanel {
         String apStat = info != null && info.clients >= 0 ? info.clients + " clients" : "";
         nodes.add(new Icons.Node(Icons.Type.AP, connected ? 0xFFF2F4F5 : 0xFF6B7178, apName, apSub, apStat, MainActivity.TEXT));
         links.add(new Icons.Link(true, connected ? signalColor(curRssi) : MainActivity.LINE));
-        nodes.add(new Icons.Node(Icons.Type.PHONE, 0xFFD5DAE0, "This phone", curIp.isEmpty() ? "—" : curIp,
+        nodes.add(new Icons.Node(Icons.Type.PHONE, 0xFFD5DAE0, MainActivity.phoneName(), curIp.isEmpty() ? "—" : curIp,
                 connected && curRssi > -127 ? signalPct(curRssi) + " %" : "", signalColor(curRssi)));
         // Read left to right from where you are: this phone → switch/AP → gateway → Internet
         java.util.Collections.reverse(nodes);
@@ -1138,6 +1139,10 @@ final class WifiPanel {
             for (String l : hopLines.values()) sb.append(l).append('\n');
             if (!traceNote.isEmpty()) sb.append(traceNote).append('\n');
         }
+        if (withSpeed && connTest != null) {
+            String conn = connTest.shareText();
+            if (!conn.isEmpty()) sb.append('\n').append(conn);
+        }
         if (withSpeed) {
             String speed = speedCard.shareText();
             if (!speed.isEmpty()) sb.append('\n').append(speed);
@@ -1201,6 +1206,15 @@ final class WifiPanel {
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, a.dp(48));
         slp.topMargin = a.dp(12);
         col.addView(shareButton, slp);
+
+        // Manual connection test over Wi-Fi (printer, server or website reachability)
+        col.addView(a.sectionHeader("Connection Test", a.text("TCP port check", 14, MainActivity.MUTED, false)));
+        connTest = new ConnectionTestCard(a, "Wi-Fi", null, card -> {
+            Network n = wifiNetwork();
+            if (n == null) throw new Exception("Not connected to a Wi-Fi network.");
+            return n;
+        });
+        col.addView(connTest.build());
 
         factorsRating = a.text("", 17, MainActivity.ACCENT, false);
         col.addView(a.sectionHeader("Wi-Fi Speed Factors", factorsRating));

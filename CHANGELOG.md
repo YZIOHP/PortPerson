@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.1.0: Findings, Switch & Traffic tabs, Connection Test
+
+The port test works exactly as before. It now also analyzes everything the switch port sends while it listens, and the results are organized into tabs.
+
+### Added
+- **Findings card** after every port test: a quick health check of the port, collapsed to one line by default. Red problems open it automatically; tap any item to jump to its details. It checks for:
+  - more than one DHCP server (a likely **rogue DHCP server** when they hand out different gateways or subnets; DHCP failover when they don't)
+  - **802.1X** requests from the switch (and whether that's why DHCP failed)
+  - **switching loops** (the same broadcast repeating) and **broadcast storms**
+  - **duplicate IP addresses**, including the gateway (HSRP/VRRP virtual MACs aren't counted)
+  - **DTP** trunk negotiation on the port, **tagged VLAN** traffic, and a possible **native VLAN mismatch** (CDP vs. PVST+)
+  - **spanning-tree topology changes** (a single change right after link-up, normal on ports without PortFast, isn't flagged)
+  - **routing protocol hellos** (OSPF, EIGRP, RIP) reaching a user port, and more than one **IPv6 router**
+- **Results tabs** under the Findings card:
+  - **Overview**: the same switch, port, VLAN, DHCP and internet results as before.
+  - **Switch**: spanning tree (mode, root bridge and who it is per CDP/LLDP, root path cost, topology changes, PVST+ VLANs), VLANs and trunking (tagged frames, DTP, VTP, 802.1X), HSRP/VRRP gateways, routing hellos, IPv6 routers and the IGMP querier.
+  - **Traffic**: frames per second by protocol, broadcast and multicast rates, devices announcing themselves (mDNS, NetBIOS and DHCP host names), and the top broadcast senders.
+  - **Connection Test**: check whether the drop can reach a printer, server or website. Enter an IP address or hostname and a port, or tap a quick pick (Print 9100, IPP 631, HTTPS 443, HTTP 80, SMB 445, RDP 3389, SSH 22, DNS 53). It tries 3 times and shows Open, Refused or Timed out with response times. It runs only when you tap Test, never scans, and keeps a list of recent checks you can tap to re-run.
+- **Save capture (.pcap)** on the Traffic tab: save what the port test received (plus the app's own test traffic) and open it in Wireshark. Captures can contain other devices' information, so share them only where you're authorized to.
+- **Connection Test on the Wi-Fi tab** too, for checking printers and servers over wireless.
+- The network map shows **your phone's model** (e.g. "Z Fold 8", "Pixel 9 Pro") instead of "This phone".
+- Findings and the Switch details are included in saved tests, shared reports and History.
+
+### Changed
+- Updated the in-app terms, [TERMS.md](TERMS.md) and [PRIVACY.md](PRIVACY.md) to describe the traffic analysis, capture files and connection tests. You'll be asked to accept the updated terms once.
+
 ## v1.0.0: First release
 
 PortPerson's first public version. Find the switch port behind any network drop from an Android phone, then check DHCP, VLAN, internet and speed, on both wired and Wi-Fi.

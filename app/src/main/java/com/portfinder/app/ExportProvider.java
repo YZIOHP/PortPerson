@@ -50,6 +50,7 @@ public final class ExportProvider extends ContentProvider {
         String p = uri.getLastPathSegment();
         if (p != null && p.endsWith(".csv")) return "text/csv";
         if (p != null && p.endsWith(".png")) return "image/png";
+        if (p != null && p.endsWith(".pcap")) return "application/vnd.tcpdump.pcap";
         return "application/octet-stream";
     }
 

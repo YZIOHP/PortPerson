@@ -110,6 +110,15 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
     private View lanView, wlanView;
     private WifiPanel wifiPanel;
     private SpeedTestCard lanSpeed;
+    /** Passive analysis of every frame the port test receives (Switch, Traffic, Findings, .pcap). */
+    final FrameAnalyzer analyzer = new FrameAnalyzer();
+    private FindingsCard findingsCard;
+    private ConnectionTestCard lanConn;
+    private LinearLayout overviewBox, switchBox, trafficBox, connBox;
+    private final List<TextView> subTabs = new ArrayList<>();
+    private int subTab;
+    private FrameAnalyzer.Report lastReport;
+    private Findings lastFindings;
     private HistoryStore history;
     private HistoryPanel historyPanel;
     private View historyView;
@@ -335,6 +344,11 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         noLink = false;
         linkAssumed = false;
         linkUpSince = 0;
+        analyzer.reset();
+        lastReport = null;
+        lastFindings = null;
+        findingsCard.reset();
+        renderAnalysis();
         captureStartedAt = 0;
         waitingForLink = true;
         discoveryDone = false;
@@ -387,7 +401,11 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         cfg.dhcpTimeoutMs = 5000;
         String t = targetEdit.getText().toString().trim();
         if (!t.isEmpty()) cfg.target = t;
-        final NetworkTester n = new NetworkTester(c::send, mac, cfg, this);
+        analyzer.setOwnMac(FrameAnalyzer.mac(mac, 0));
+        final NetworkTester n = new NetworkTester(frame -> {
+            analyzer.recordSent(frame, System.currentTimeMillis());
+            return c.send(frame);
+        }, mac, cfg, this);
         net = n;
         netStatus = "Client MAC " + n.macString();
         renderNet();
@@ -444,6 +462,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
             setStatus(message, neighbors.isEmpty() ? WARN : ACCENT);
         }
         renderNet();
+        renderAnalysis();
         shareButton.setVisibility(neighbors.isEmpty() && lease == null && dhcpFailure == null ? View.GONE : View.VISIBLE);
         if (!neighbors.isEmpty() || lease != null || dhcpFailure != null) saveLanTest();
     }
@@ -471,10 +490,14 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         if (targetPing != null) parts.add(targetPing.received > 0 ? "Internet OK" : "No internet");
         String speed = linkText.getText() == null ? "" : linkText.getText().toString();
         if (speed.startsWith("Link up · ")) parts.add(speed.substring(10));
+        if (lastFindings != null && !lastFindings.items.isEmpty()) {
+            int bad = lastFindings.count(Findings.BAD), warn = lastFindings.count(Findings.WARN);
+            parts.add(bad > 0 ? bad + (bad == 1 ? " problem" : " problems") : warn + (warn == 1 ? " warning" : " warnings"));
+        }
         e.summary = String.join("  ·  ", parts);
         boolean noInternet = targetPing != null && targetPing.received == 0;
         e.status = dhcpFailure != null || (b == null && lease == null) ? HistoryStore.FAIL
-                : b == null || noInternet ? HistoryStore.WARN : HistoryStore.OK;
+                : b == null || noInternet || (lastFindings != null && !lastFindings.items.isEmpty()) ? HistoryStore.WARN : HistoryStore.OK;
         e.report = lanReport();
         return e;
     }
@@ -547,6 +570,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         String remaining = keep || discoveryDone ? elapsed + " s" : elapsed + " / " + TEST_SECONDS + " s";
         timerText.setText(String.format(Locale.US, "%s %s   ·   %,d frames received", what, remaining, framesSeen));
         renderProgress();
+        renderAnalysis();
         ui.postDelayed(tickRunnable, 1000);
     }
 
@@ -601,6 +625,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
     @Override
     public void onFrame(byte[] buf, int off, int len) {
         framesSeen++;
+        analyzer.onFrame(buf, off, len, System.currentTimeMillis());
         NetworkTester t = net;
         if (t != null) t.onFrame(buf, off, len);
         NeighborInfo n = DiscoveryParser.parse(buf, off, len);
@@ -936,12 +961,20 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         if (!label.isEmpty()) sb.append("Drop: ").append(label).append("\n\n");
         for (NeighborInfo n : neighbors.values()) sb.append(n.toText()).append('\n');
         if (neighbors.isEmpty()) sb.append("No CDP or LLDP heard.\n\n");
+        if (lastFindings != null) {
+            String ft = lastFindings.toText();
+            if (!ft.isEmpty()) sb.append(ft).append('\n');
+        }
         sb.append(networkText());
+        String sw = AnalysisViews.switchText(lastReport);
+        if (!sw.isEmpty()) sb.append('\n').append(sw);
         return sb.toString();
     }
 
     private void share() {
         StringBuilder sb = new StringBuilder("PortPerson results\n\n").append(lanReport());
+        String conn = lanConn.shareText();
+        if (!conn.isEmpty()) sb.append('\n').append(conn);
         String speed = lanSpeed.shareText();
         if (!speed.isEmpty()) sb.append('\n').append(speed);
         NeighborInfo b = bestNeighbor();
@@ -986,11 +1019,11 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
      * The speed test needs real TCP/TLS, so it runs over Android's own Ethernet support: once the port
      * test releases the adapter, Android's driver picks it back up and gets an address. Background thread.
      */
-    private Network acquireEthernet(SpeedTestCard card) throws Exception {
+    private Network acquireEthernet(java.util.function.BooleanSupplier stillWanted, java.util.function.Consumer<String> status) throws Exception {
         long start = System.currentTimeMillis();
         boolean waited = false;
         while (System.currentTimeMillis() - start < 30_000) {
-            if (!lanSpeed.isRunning()) throw new Exception("Stopped.");
+            if (!stillWanted.getAsBoolean()) throw new Exception("Stopped.");
             Network n = ethernetNetwork();
             if (n != null) {
                 if (waited) Thread.sleep(1500); // let the new link settle (DNS, routes)
@@ -1000,7 +1033,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
                 throw new Exception("No USB Ethernet adapter is plugged in.");
             }
             waited = true;
-            card.status("Waiting for Android to bring the adapter up as Ethernet and get an address… "
+            status.accept("Waiting for Android to bring the adapter up as Ethernet and get an address… "
                     + (System.currentTimeMillis() - start) / 1000 + " s");
             Thread.sleep(1000);
         }
@@ -1022,6 +1055,124 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
             }
         }
         return null;
+    }
+
+    private LinearLayout vbox() {
+        LinearLayout b = new LinearLayout(this);
+        b.setOrientation(LinearLayout.VERTICAL);
+        return b;
+    }
+
+    /** Shows one LAN sub-tab: 0 Overview, 1 Switch, 2 Traffic, 3 Connection. */
+    void selectSubTab(int i) {
+        subTab = i;
+        View[] boxes = {overviewBox, switchBox, trafficBox, connBox};
+        for (int k = 0; k < boxes.length; k++) {
+            if (boxes[k] != null) boxes[k].setVisibility(k == i ? View.VISIBLE : View.GONE);
+            if (k < subTabs.size()) {
+                TextView t = subTabs.get(k);
+                t.setBackground(k == i ? rounded(BLUE, dp(9)) : null);
+                t.setTextColor(k == i ? Color.WHITE : MUTED);
+            }
+        }
+        if (i == 1 || i == 2) fillAnalysisTab();
+    }
+
+    /** Re-reads the analyzer and refreshes the Findings card and the visible Switch/Traffic tab. */
+    private void renderAnalysis() {
+        if (findingsCard == null) return;
+        FrameAnalyzer.Report r = analyzer.report();
+        if (r.frames == 0 || waitingForLink) {
+            if (!testing) findingsCard.show(lastFindings);
+            else findingsCard.show(null);
+            if (r.frames == 0) {
+                lastReport = null;
+                fillAnalysisTab();
+                return;
+            }
+        }
+        lastReport = r;
+        Findings.Context c = new Findings.Context();
+        c.dhcpOk = lease != null;
+        c.dhcpFailed = dhcpFailure != null;
+        c.gateway = lease != null ? lease.gateway : "";
+        c.leaseIp = lease != null ? lease.ip : "";
+        NeighborInfo b = bestNeighbor();
+        c.cdpNativeVlan = b != null ? b.nativeVlan : "";
+        c.seconds = r.durationMs / 1000;
+        // Wait a few seconds of listening so a half-second sample doesn't raise or clear alarms
+        if (testing && r.durationMs < 4000) return;
+        lastFindings = Findings.evaluate(r, c);
+        findingsCard.show(lastFindings);
+        fillAnalysisTab();
+    }
+
+    private void fillAnalysisTab() {
+        if (switchBox == null) return;
+        if (subTab == 1) AnalysisViews.fillSwitch(this, switchBox, lastReport, rootHint());
+        else if (subTab == 2) AnalysisViews.fillTraffic(this, trafficBox, lastReport, this::savePcap);
+    }
+
+    /** "IDF-CORE-1 (per CDP)" when the root bridge MAC matches a switch that sent CDP/LLDP. */
+    private String rootHint() {
+        if (lastReport == null || lastReport.stp.isEmpty()) return "";
+        String root = lastReport.stp.get(0).rootMac;
+        for (NeighborInfo n : neighbors.values()) {
+            if (n.sourceMac != null && n.sourceMac.length() >= 14 && root.length() >= 14
+                    && n.sourceMac.substring(0, 14).equalsIgnoreCase(root.substring(0, 14))) {
+                return n.headlineName() + " (per " + n.protocol + ")";
+            }
+        }
+        return "";
+    }
+
+    /** Name of a device seen during the port test, for the Connection Test result. */
+    private String deviceName(String ip) {
+        FrameAnalyzer.Report r = lastReport;
+        if (r == null) return null;
+        for (FrameAnalyzer.Device d : r.devices) if (d.ip.equals(ip)) return d.name;
+        return null;
+    }
+
+    static String phoneName() {
+        return PhoneModel.shortName(Build.MANUFACTURER, Build.MODEL);
+    }
+
+    /** Saves the frames from the last port test as a .pcap and opens the share sheet. */
+    private void savePcap() {
+        if (testing) {
+            android.widget.Toast.makeText(this, "Stop the test first, or wait for it to finish.", android.widget.Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new Thread(() -> {
+            try {
+                java.io.File dir = new java.io.File(getCacheDir(), "exports");
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+                java.io.File[] old = dir.listFiles((d, n) -> n.endsWith(".pcap"));
+                if (old != null) for (java.io.File o : old) //noinspection ResultOfMethodCallIgnored
+                    o.delete();
+                String label = dropLabel().replaceAll("[^A-Za-z0-9_-]+", "-").replaceAll("^-|-$", "");
+                java.io.File file = new java.io.File(dir, "portperson-" + (label.isEmpty() ? "" : label + "-")
+                        + new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(new java.util.Date()) + ".pcap");
+                try (java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(file))) {
+                    analyzer.writePcap(out);
+                }
+                ui.post(() -> {
+                    android.net.Uri uri = ExportProvider.uriFor(this, file);
+                    Intent send = new Intent(Intent.ACTION_SEND);
+                    send.setType("application/vnd.tcpdump.pcap");
+                    send.putExtra(Intent.EXTRA_STREAM, uri);
+                    send.putExtra(Intent.EXTRA_SUBJECT, "PortPerson capture " + file.getName());
+                    send.setClipData(android.content.ClipData.newRawUri("", uri));
+                    send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(send, "Save or share capture"));
+                });
+            } catch (Exception e) {
+                ui.post(() -> android.widget.Toast.makeText(this, "Couldn't save the capture: " + e.getMessage(),
+                        android.widget.Toast.LENGTH_LONG).show());
+            }
+        }, "pcap-save").start();
     }
 
     private void setStatus(String s, int color) {
@@ -1190,7 +1341,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         String ip = lease != null ? lease.ip : dhcpFailure != null ? "No address" : "—";
         String speed = linkText != null && linkText.getText() != null ? linkText.getText().toString() : "";
         speed = speed.startsWith("Link up · ") ? speed.substring(10) : "";
-        nodes.add(new Icons.Node(Icons.Type.PHONE, 0xFFD5DAE0, "This phone", ip, speed,
+        nodes.add(new Icons.Node(Icons.Type.PHONE, 0xFFD5DAE0, phoneName(), ip, speed,
                 dhcpFailure != null ? ERROR : ACCENT));
         // Read left to right from where you are: this phone → switch/AP → gateway → Internet
         java.util.Collections.reverse(nodes);
@@ -1328,6 +1479,46 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         timerText.setPadding(dp(2), dp(4), 0, dp(4));
         col.addView(timerText);
 
+        findingsCard = new FindingsCard(this, this::selectSubTab);
+        col.addView(findingsCard.view());
+
+        LinearLayout tabBar = new LinearLayout(this);
+        tabBar.setOrientation(LinearLayout.HORIZONTAL);
+        tabBar.setBackground(outlined(CARD, dp(12)));
+        tabBar.setPadding(dp(4), dp(4), dp(4), dp(4));
+        String[] names = {"Overview", "Switch", "Traffic", "Connection"};
+        for (int i = 0; i < names.length; i++) {
+            TextView t = text(names[i], 13, MUTED, true);
+            t.setGravity(Gravity.CENTER);
+            t.setPadding(0, dp(8), 0, dp(8));
+            final int idx = i;
+            t.setOnClickListener(v -> selectSubTab(idx));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            if (i > 0) lp.leftMargin = dp(3);
+            tabBar.addView(t, lp);
+            subTabs.add(t);
+        }
+        LinearLayout.LayoutParams tbl = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tbl.topMargin = dp(12);
+        col.addView(tabBar, tbl);
+
+        overviewBox = vbox();
+        switchBox = vbox();
+        trafficBox = vbox();
+        connBox = vbox();
+        col.addView(overviewBox);
+        col.addView(switchBox);
+        col.addView(trafficBox);
+        col.addView(connBox);
+
+        lanConn = new ConnectionTestCard(this, "Ethernet",
+                () -> {
+                    if (testing) stopTest("Port test stopped for the connection test.", false);
+                },
+                card -> acquireEthernet(card::isRunning, card::status));
+        lanConn.setNameLookup(this::deviceName);
+        connBox.addView(lanConn.build());
+
         headlineCard = card();
         headlineCard.setVisibility(View.GONE);
         headlineCard.addView(label("Switch"));
@@ -1345,11 +1536,11 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         viaText = text("", 12, MUTED, false);
         viaText.setPadding(0, dp(6), 0, 0);
         headlineCard.addView(viaText);
-        col.addView(headlineCard);
+        overviewBox.addView(headlineCard);
 
         netBox = new LinearLayout(this);
         netBox.setOrientation(LinearLayout.VERTICAL);
-        col.addView(netBox);
+        overviewBox.addView(netBox);
 
         LinearLayout adapterCard = card();
         adapterCard.addView(label("Adapter"));
@@ -1364,11 +1555,12 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
         usbText.setPadding(0, dp(8), 0, 0);
         usbText.setVisibility(View.GONE);
         adapterCard.addView(usbText);
-        col.addView(adapterCard);
+        overviewBox.addView(adapterCard);
 
         resultsBox = new LinearLayout(this);
         resultsBox.setOrientation(LinearLayout.VERTICAL);
-        col.addView(resultsBox);
+        overviewBox.addView(resultsBox);
+        selectSubTab(0);
 
         shareButton = button("Share results", false);
         shareButton.setVisibility(View.GONE);
@@ -1382,7 +1574,7 @@ public class MainActivity extends Activity implements UsbEthernetCapture.Listene
                 () -> {
                     if (testing) stopTest("Port test stopped for the speed test.", false);
                 },
-                this::acquireEthernet,
+                card -> acquireEthernet(card::isRunning, card::status),
                 () -> shareButton.setVisibility(View.VISIBLE));
         col.addView(lanSpeed.build());
 

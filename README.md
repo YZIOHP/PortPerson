@@ -15,7 +15,7 @@ No root needed. No ads, no accounts, no tracking. Made by **YZIOHP**. For use on
 
 ## Download
 
-Get the latest **`PortPerson-v1.0.0.apk`** from [Releases](../../releases). Open it on your phone and allow "Install unknown apps" for your browser or file manager when Android asks.
+Get the latest **`PortPerson-v1.1.0.apk`** from [Releases](../../releases). Open it on your phone and allow "Install unknown apps" for your browser or file manager when Android asks.
 
 ## What it does
 
@@ -25,8 +25,14 @@ Get the latest **`PortPerson-v1.0.0.apk`** from [Releases](../../releases). Open
 - **DHCP**: whether an address was received, IP/prefix, gateway and its MAC, DNS, domain, DHCP server, relay (`ip helper-address`), lease time and how long it took.
 - **VLAN**: the access VLAN as the switch reports it, plus voice VLAN and the subnet DHCP handed out.
 - **Internet**: gateway ping, DNS lookup, ping and an **ICMP traceroute** with hop names.
+- **Findings**: a collapsible health check after every port test. It flags a second (possibly rogue) DHCP server, 802.1X, loops and broadcast storms, duplicate IPs, DTP trunk negotiation, tagged VLANs, native VLAN mismatches, spanning-tree changes, routing hellos and extra IPv6 routers. Red problems open it automatically.
+- **Results in four tabs**:
+  - **Overview**: switch, port, VLAN, DHCP and internet results.
+  - **Switch**: spanning tree (mode, root bridge, topology changes), VLANs and trunking (tags, DTP, VTP), HSRP/VRRP gateways, routing hellos and IPv6 routers.
+  - **Traffic**: frames per second by protocol, broadcast rate, devices announcing themselves (mDNS, NetBIOS, DHCP host names), top broadcast senders, and **Save capture (.pcap)** to open in Wireshark.
+  - **Connection Test**: check whether the drop can reach a printer, server or website. Enter an IP or hostname and a port, or pick one (print 9100, IPP 631, HTTPS 443, SMB 445…). Runs only when you tap Test.
 - **Speed test** via Cloudflare.
-- A network map at the top, read left to right: this phone → switch/port → gateway → Internet.
+- A network map at the top, read left to right: this phone (with its model name) → switch/port → gateway → Internet.
 
 The LAN tests (except the speed test) run **over the adapter itself, never Wi-Fi or cellular**, using the adapter's own MAC address. The DHCP lease is released when the test ends.
 
@@ -35,6 +41,7 @@ The LAN tests (except the speed test) run **over the adapter itself, never Wi-Fi
 - **Access point**: the AP's **name** read from its beacons (Cisco, Aruba, Juniper Mist, Extreme/Aerohive; WPS device name on home routers). Also its vendor, client count and channel utilization (when advertised), other SSIDs on the same AP, and other APs for your network.
 - **Wi-Fi Speed Factors**: Spectrum, Radio Potential and Channel Health, with an overall rating.
 - **Network test** over Wi-Fi: gateway ping, DNS, TCP connect, ping and traceroute.
+- **Connection Test** over Wi-Fi: the same printer / server / website port check as the LAN tab.
 - **Speed test** via Cloudflare.
 
 ### Scan tab
@@ -52,6 +59,10 @@ The LAN tests (except the speed test) run **over the adapter itself, never Wi-Fi
 |:---:|:---:|:---:|:---:|
 | <img src="docs/screenshots/lan.png" width="200"> | <img src="docs/screenshots/wifi.png" width="200"> | <img src="docs/screenshots/scan.png" width="200"> | <img src="docs/screenshots/history.png" width="200"> |
 | Switch, port and VLAN from CDP/LLDP, plus DHCP. The map reads from your phone to the Internet. | Wi-Fi test (ping, DNS, traceroute), the AP you're on and its speed factors, then a Cloudflare speed test. | Channel usage and every nearby access point. | Every test saved, with drop labels, CSV export and sharing. |
+
+**After a port test:** Findings at the top, then the Overview, Switch, Traffic and Connection Test tabs:
+
+<p align="center"><img src="docs/screenshots/lan-tabs.png" alt="LAN results: Overview, Switch, Traffic and Connection Test tabs"></p>
 
 **Share as image:** any result can be sent as a report card like this one:
 
@@ -90,10 +101,13 @@ PortPerson has no analytics and no accounts. Saved tests stay in the app's priva
 - **Speed test**: speed.cloudflare.com (Cloudflare sees your public IP, as with any website).
 - **AP vendor lookup**: sends only the vendor half of the AP's MAC address (e.g. `F0:9F:C2`) to api.macvendors.com.
 - **Internet tests**: the target you choose (default `google.com`) and your network's own DNS servers.
+- **Connection tests**: only the address and port you enter, when you tap Test. PortPerson doesn't scan networks.
+
+During a port test, the frames the switch port delivers are analyzed on the phone and kept in memory until the next test. They're written to a `.pcap` file only when you tap **Save capture**. Capture files can contain other devices' addresses and names, so share them only where you're authorized to.
 
 ## How it works
 
-Android doesn't let regular apps read raw Ethernet frames, and CDP/LLDP never reach the IP stack anyway. So for the LAN tab, PortPerson acts as its own small USB Ethernet driver through Android's USB host API. It takes the adapter over, sets it to promiscuous mode, decodes CDP/LLDP, and runs its own minimal IPv4 client (DHCP, ARP, ICMP, DNS, traceroute) on raw frames. The speed test needs real TCP/TLS, so it runs over Android's own Ethernet or Wi-Fi network, pinned to that interface. Before measuring, it checks that a test connection really leaves through that interface and shows it (e.g. *Via: Ethernet · eth0 · 10.20.30.57*). If it didn't, the test is cancelled rather than measuring the wrong network. After a port test, the adapter is switched back to its original USB mode so Android can use it again.
+Android doesn't let regular apps read raw Ethernet frames, and CDP/LLDP never reach the IP stack anyway. So for the LAN tab, PortPerson acts as its own small USB Ethernet driver through Android's USB host API. It takes the adapter over, sets it to promiscuous mode, decodes CDP/LLDP, analyzes the other frames the port delivers (spanning tree, DTP/VTP, 802.1X, DHCP, ARP, HSRP/VRRP, routing hellos, IPv6 RAs, mDNS/NetBIOS), and runs its own minimal IPv4 client (DHCP, ARP, ICMP, DNS, traceroute) on raw frames. The speed test needs real TCP/TLS, so it runs over Android's own Ethernet or Wi-Fi network, pinned to that interface. Before measuring, it checks that a test connection really leaves through that interface and shows it (e.g. *Via: Ethernet · eth0 · 10.20.30.57*). If it didn't, the test is cancelled rather than measuring the wrong network. After a port test, the adapter is switched back to its original USB mode so Android can use it again.
 
 | File | Role |
 |---|---|
@@ -101,6 +115,10 @@ Android doesn't let regular apps read raw Ethernet frames, and CDP/LLDP never re
 | `UsbEthernetCapture.java` | Userspace CDC-ECM/NCM and ASIX AX88179 driver |
 | `NetworkTester.java` | DHCP, ARP, ping, DNS and traceroute over raw frames |
 | `LldpAnnouncer.java` | Optional LLDP-MED announcement |
+| `FrameAnalyzer.java`, `Findings.java` | Passive traffic analysis, findings and .pcap export |
+| `FindingsCard.java`, `AnalysisViews.java` | Findings card, Switch and Traffic tabs |
+| `ConnectionTestCard.java` | Connection Test (TCP port check) on the LAN and Wi-Fi tabs |
+| `TestProgress.java`, `AppIcon.java`, `PhoneModel.java` | Link-wait checklist, splash screen, phone model name |
 | `WifiPanel.java`, `ApInfo.java` | Wi-Fi and Scan tabs, AP identity from beacons |
 | `SpeedTest.java`, `SpeedTestCard.java` | Cloudflare speed test |
 | `HistoryStore.java`, `HistoryPanel.java`, `ExportProvider.java` | Saved tests, History tab and CSV export |
